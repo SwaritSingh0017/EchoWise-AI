@@ -1,0 +1,7 @@
+{
+  "build": {
+    "env": {
+      "GIT_SSH_COMMAND": "ssh -o StrictHostKeyChecking=no"
+    }
+  }
+}
