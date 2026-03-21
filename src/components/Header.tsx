@@ -132,17 +132,24 @@ export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
       }
     };
 
-    const handleBalanceUpdate = (event: CustomEvent) => {
-      setBalance(event.detail);
+    const handleBalanceUpdate = async () => {
+      if (userInfo && userInfo.email) {
+        const user = await getUserByEmail(userInfo.email);
+        if (user) {
+          const userBalance = await getUserBalance(user.id);
+          setBalance(userBalance);
+        }
+      }
     };
 
     if (loggedIn) {
       fetchUserBalance();
-      window.addEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+      window.addEventListener('balanceUpdated', handleBalanceUpdate);
       return () => {
-        window.removeEventListener('balanceUpdated', handleBalanceUpdate as EventListener);
+        window.removeEventListener('balanceUpdated', handleBalanceUpdate);
       };
     }
+
   }, [userInfo, loggedIn]);
 
   const login = async () => {
