@@ -43,7 +43,7 @@ export default function ReportPage() {
   } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchBox, setSearchBox] = useState<google.maps.places.SearchBox | null>(null);
-  
+
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   useEffect(() => {
@@ -102,88 +102,129 @@ export default function ReportPage() {
     });
   };
 
- const handleVerify = async () => {
-  if (!file || !geminiApiKey) return;
+  const handleVerify = async () => {
+    if (!file || !geminiApiKey) return;
 
-  setVerificationStatus("verifying");
+    setVerificationStatus("verifying");
 
-  try {
-    const genAI = new GoogleGenerativeAI(geminiApiKey);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-3-flash-preview",
-    });
+    try {
+      const genAI = new GoogleGenerativeAI(geminiApiKey);
 
-    const base64Data = await readFileAsBase64(file);
-
-    const imageParts = [
-      {
-        inlineData: {
-          data: base64Data.split(",")[1],
-          mimeType: file.type,
+      // ✅ Reduced randomness
+      const model = genAI.getGenerativeModel({
+        model: "gemini-3-flash-preview",
+        generationConfig: {
+          temperature: 0.1,
+          topP: 0.8,
+          topK: 40,
         },
-      },
-    ];
+      });
 
-    const prompt = `
-You are an expert in waste management.
+      const base64Data = await readFileAsBase64(file);
 
-Analyze this image and respond ONLY with a valid JSON object.
-Do NOT include markdown.
-Do NOT include backticks.
-Do NOT include explanations.
+      const imageParts = [
+        {
+          inlineData: {
+            data: base64Data.split(",")[1],
+            mimeType: file.type,
+          },
+        },
+      ];
 
-Format strictly like this:
+      // ✅ Improved strict prompt + hazard handling
+      const prompt = `
+You are a strict waste classification AI.
+
+Analyze the image and respond ONLY with valid JSON.
+
+Rules:
+- Be consistent
+- Use categories: plastic, organic, metal, mixed, hazard
+- Confidence must be between 0 and 1
+- No markdown, no explanation
+
+IMPORTANT:
+If image contains:
+- human body
+- injured person
+- dead animal
+Return:
 {
-  "wasteType": "type of waste",
-  "quantity": "estimated quantity with unit",
-  "confidence": 0.9
+  "wasteType": "hazard",
+  "quantity": "N/A",
+  "confidence": 1.0
+}
+
+Otherwise use:
+{
+  "wasteType": "plastic | organic | metal | mixed",
+  "quantity": "estimated amount (e.g., 2 kg)",
+  "confidence": 0.85
 }
 `;
 
-    const result = await model.generateContent([prompt, ...imageParts]);
-    const response = await result.response;
-    const text = response.text().trim();
+      const result = await model.generateContent([prompt, ...imageParts]);
+      const response = await result.response;
+      const text = response.text().trim();
 
-    // Extract JSON safely
-    const jsonMatch = text.match(/\{[\s\S]*?\}/);
+      const jsonMatch = text.match(/\{[\s\S]*?\}/);
 
-    if (!jsonMatch) {
-      throw new Error("No valid JSON object found in AI response.");
+      if (!jsonMatch) {
+        throw new Error("No valid JSON found.");
+      }
+
+      const parsedResult = JSON.parse(jsonMatch[0]);
+
+      // ✅ Strict validation
+      if (
+        typeof parsedResult.wasteType !== "string" ||
+        typeof parsedResult.quantity !== "string" ||
+        typeof parsedResult.confidence !== "number"
+      ) {
+        throw new Error("Invalid AI response structure.");
+      }
+
+      // ✅ Clamp confidence
+      parsedResult.confidence = Math.min(
+        Math.max(parsedResult.confidence, 0),
+        1
+      );
+
+      // 🚨 Hazard detection (dead body etc.)
+      if (
+        parsedResult.wasteType.toLowerCase().includes("hazard") ||
+        parsedResult.wasteType.toLowerCase().includes("human") ||
+        parsedResult.wasteType.toLowerCase().includes("body")
+      ) {
+        setVerificationStatus("failure");
+        toast.error("🚨 Emergency detected! Not a waste case.");
+        return;
+      }
+
+      // ❌ 70% threshold
+      if (parsedResult.confidence < 0.7) {
+        setVerificationStatus("failure");
+        toast.error("Low confidence (<70%). Upload clearer image.");
+        return;
+      }
+
+      // ✅ Success
+      setVerificationResult(parsedResult);
+      setVerificationStatus("success");
+
+      setNewReport((prev) => ({
+        ...prev,
+        type: parsedResult.wasteType,
+        amount: parsedResult.quantity,
+      }));
+
+      toast.success("Image verified successfully!");
+    } catch (error) {
+      console.error("Verification error:", error);
+      setVerificationStatus("failure");
+      toast.error("AI verification failed. Try again.");
     }
-
-    const parsedResult = JSON.parse(jsonMatch[0]);
-
-    // Strict validation (0.0 is allowed!)
-    if (
-      typeof parsedResult.wasteType !== "string" ||
-      typeof parsedResult.quantity !== "string" ||
-      typeof parsedResult.confidence !== "number"
-    ) {
-      throw new Error("Invalid or incomplete JSON structure from AI.");
-    }
-
-    // Clamp confidence between 0 and 1
-    parsedResult.confidence = Math.min(
-      Math.max(parsedResult.confidence, 0),
-      1
-    );
-
-    setVerificationResult(parsedResult);
-    setVerificationStatus("success");
-
-    setNewReport((prev) => ({
-      ...prev,
-      type: parsedResult.wasteType,
-      amount: parsedResult.quantity,
-    }));
-
-    toast.success("Image verified successfully!");
-  } catch (error) {
-    console.error("Verification error:", error);
-    setVerificationStatus("failure");
-    toast.error("AI verification failed. Please try again.");
-  }
-};
+  };
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -192,7 +233,7 @@ Format strictly like this:
       toast.error('Please verify the waste image before submitting.');
       return;
     }
-    
+
     setIsSubmitting(true);
     try {
       const report = await createReport(
@@ -203,7 +244,7 @@ Format strictly like this:
         preview || undefined,
         verificationResult ? JSON.stringify(verificationResult) : undefined
       ) as any;
-      
+
       const formattedReport = {
         id: report.id,
         location: report.location,
@@ -211,7 +252,7 @@ Format strictly like this:
         amount: report.amount,
         createdAt: new Date(report.createdAt).toISOString().split('T')[0]
       };
-      
+
       setReports([formattedReport, ...reports]);
       setNewReport({ location: '', type: '', amount: '' });
       setFile(null);
@@ -242,10 +283,10 @@ Format strictly like this:
           }));
           setReports(formattedReports);
         } else {
-            router.push('/login');
+          router.push('/login');
         }
       } else {
-        router.push('/login'); 
+        router.push('/login');
       }
       setIsAuthLoading(false);
     };
@@ -263,7 +304,7 @@ Format strictly like this:
   return (
     <div className="p-4 md:p-8 max-w-4xl mx-auto">
       <h1 className="text-3xl font-semibold mb-6 text-gray-800">Report Waste</h1>
-      
+
       <form onSubmit={handleSubmit} className="bg-white p-6 md:p-8 rounded-2xl shadow-lg mb-12">
         <div className="mb-8">
           <label htmlFor="waste-image" className="block text-lg font-medium text-gray-700 mb-2">
@@ -286,27 +327,27 @@ Format strictly like this:
             </div>
           </div>
         </div>
-        
+
         {preview && (
           <div className="mt-4 mb-8">
             <img src={preview} alt="Waste preview" className="max-w-full h-auto rounded-xl shadow-md" />
           </div>
         )}
-        
+
         <div className="mb-8">
-            <label className="block text-lg font-medium text-gray-700 mb-2">
-                2. Verify with AI
-            </label>
-            <Button 
-              type="button" 
-              onClick={handleVerify} 
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 text-lg rounded-xl transition-colors duration-300" 
-              disabled={!file || verificationStatus === 'verifying'}
-            >
-              {verificationStatus === 'verifying' ? (
-                <><Loader className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" />Verifying...</>
-              ) : 'Verify Waste Image'}
-            </Button>
+          <label className="block text-lg font-medium text-gray-700 mb-2">
+            2. Verify with AI
+          </label>
+          <Button
+            type="button"
+            onClick={handleVerify}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 text-lg rounded-xl transition-colors duration-300"
+            disabled={!file || verificationStatus === 'verifying'}
+          >
+            {verificationStatus === 'verifying' ? (
+              <><Loader className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" />Verifying...</>
+            ) : 'Verify Waste Image'}
+          </Button>
         </div>
 
         {verificationStatus === 'success' && verificationResult && (
@@ -337,36 +378,45 @@ Format strictly like this:
         )}
 
         <div className="mb-8">
-            <label className="block text-lg font-medium text-gray-700 mb-2">
-                3. Confirm Details
-            </label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div>
-                <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                {isMapsLoaded ? (
-                  <StandaloneSearchBox
-                    onLoad={onLoad}
-                    onPlacesChanged={onPlacesChanged}
-                  >
-                    <input type="text" id="location" name="location" defaultValue={newReport.location} required className="w-full px-4 py-2 border border-gray-300 rounded-xl" placeholder="Enter waste location" />
-                  </StandaloneSearchBox>
-                ) : (
-                  <input type="text" id="location" name="location" value={newReport.location} onChange={handleInputChange} required className="w-full px-4 py-2 border border-gray-300 rounded-xl" placeholder="Loading location search..." disabled />
-                )}
-              </div>
-              <div>
-                <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-1">Waste Type</label>
-                <input type="text" id="type" name="type" value={newReport.type} required className="w-full px-4 py-2 border border-gray-300 rounded-xl bg-gray-100" placeholder="Verified by AI" readOnly />
-              </div>
-              <div>
-                <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-1">Estimated Amount</label>
-                <input type="text" id="amount" name="amount" value={newReport.amount} required className="w-full px-4 py-2 border border-gray-300 rounded-xl bg-gray-100" placeholder="Verified by AI" readOnly />
-              </div>
+          <label className="block text-lg font-medium text-gray-700 mb-2">
+            3. Confirm Details
+          </label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+              {isMapsLoaded ? (
+                <StandaloneSearchBox
+                  onLoad={onLoad}
+                  onPlacesChanged={onPlacesChanged}
+                >
+                  <input
+                    type="text"
+                    id="location"
+                    name="location"
+                    value={newReport.location}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-xl"
+                    placeholder="Enter waste location"
+                  />
+                </StandaloneSearchBox>
+              ) : (
+                <input type="text" id="location" name="location" value={newReport.location} onChange={handleInputChange} required className="w-full px-4 py-2 border border-gray-300 rounded-xl" placeholder="Loading location search..." disabled />
+              )}
             </div>
+            <div>
+              <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-1">Waste Type</label>
+              <input type="text" id="type" name="type" value={newReport.type} required className="w-full px-4 py-2 border border-gray-300 rounded-xl bg-gray-100" placeholder="Verified by AI" readOnly />
+            </div>
+            <div>
+              <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-1">Estimated Amount</label>
+              <input type="text" id="amount" name="amount" value={newReport.amount} required className="w-full px-4 py-2 border border-gray-300 rounded-xl bg-gray-100" placeholder="Verified by AI" readOnly />
+            </div>
+          </div>
         </div>
 
-        <Button 
-          type="submit" 
+        <Button
+          type="submit"
           className="w-full bg-green-600 hover:bg-green-700 text-white py-3 text-lg rounded-xl flex items-center justify-center"
           disabled={isSubmitting || verificationStatus !== 'success'}
         >
