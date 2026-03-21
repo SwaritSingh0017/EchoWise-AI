@@ -24,7 +24,7 @@ interface Notification {
   message: string;
 }
 
-const clientId = "BG9-PhLnw4W3meQAkSNvpGG_rq8LeIjBjGFjMpu6CwG7XdUMcZKM3R31LA4dAYaz7-bNutzp-gpoYEgzW7EOgH4";
+const clientId = "BIlpsS9agL9imE-04biot32zXDf8P0gAeTzpXVr8iYFUhA-0NMI5ZyBgGUSufAxmJeukxet1JLrQznjjVzYhdTg";
 
 const chainConfig = {
   chainNamespace: CHAIN_NAMESPACES.EIP155,
