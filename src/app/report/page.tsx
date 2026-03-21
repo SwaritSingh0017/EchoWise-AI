@@ -110,7 +110,7 @@ export default function ReportPage() {
     try {
       const genAI = new GoogleGenerativeAI(geminiApiKey);
 
-      // ✅ Reduced randomness
+      //  Reduced randomness
       const model = genAI.getGenerativeModel({
         model: "gemini-3-flash-preview",
         generationConfig: {
@@ -131,7 +131,7 @@ export default function ReportPage() {
         },
       ];
 
-      // ✅ Improved strict prompt + hazard handling
+      //  prompt/
       const prompt = `
 You are a strict waste classification AI.
 
@@ -175,7 +175,7 @@ Otherwise use:
 
       const parsedResult = JSON.parse(jsonMatch[0]);
 
-      // ✅ Strict validation
+      //  Strict validation
       if (
         typeof parsedResult.wasteType !== "string" ||
         typeof parsedResult.quantity !== "string" ||
@@ -184,24 +184,24 @@ Otherwise use:
         throw new Error("Invalid AI response structure.");
       }
 
-      // ✅ Clamp confidence
+      // Clamp confidence
       parsedResult.confidence = Math.min(
         Math.max(parsedResult.confidence, 0),
         1
       );
 
-      // 🚨 Hazard detection (dead body etc.)
+      // Hazard detection (dead body etc.)
       if (
         parsedResult.wasteType.toLowerCase().includes("hazard") ||
         parsedResult.wasteType.toLowerCase().includes("human") ||
         parsedResult.wasteType.toLowerCase().includes("body")
       ) {
         setVerificationStatus("failure");
-        toast.error("🚨 Emergency detected! Not a waste case.");
+        toast.error("🚨 Emergency detected! Not a waste case. please do contact Municipal Corporatio");
         return;
       }
 
-      // ❌ 70% threshold
+      // 70% threshold
       if (parsedResult.confidence < 0.7) {
         setVerificationStatus("failure");
         toast.error("Low confidence (<70%). Upload clearer image.");
