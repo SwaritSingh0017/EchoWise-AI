@@ -8,6 +8,7 @@ import Sidebar from "@/components/Sidebar"
 import 'leaflet/dist/leaflet.css'
 import { Toaster } from 'react-hot-toast'
 import { getAvailableRewards, getUserByEmail } from '@/utils/db/actions'
+import ChatBot from '@/components/ChatBot';
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -54,6 +55,7 @@ export default function RootLayout({
           </div>
         </div>
         <Toaster />
+      <ChatBot />
       </body>
     </html>
   )
