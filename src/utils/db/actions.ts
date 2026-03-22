@@ -366,6 +366,11 @@ export async function getWasteCollectionTasks(
   userIdToExclude?: number
 ) {
   try {
+    const conditions = [ne(Reports.status, "verified")];
+    if (userIdToExclude) {
+      conditions.push(ne(Reports.userId, userIdToExclude));
+    }
+
     let query = db
       .select({
         id: Reports.id,
@@ -383,12 +388,7 @@ export async function getWasteCollectionTasks(
       })
       .from(Reports)
       .leftJoin(Users, eq(Reports.userId, Users.id))
-      .where(
-        and(
-          ne(Reports.status, "verified"),
-          userIdToExclude ? ne(Reports.userId, userIdToExclude) : undefined
-        )
-      )
+      .where(and(...conditions))
       .orderBy(desc(Reports.createdAt))
       .limit(limit);
 
@@ -404,10 +404,20 @@ export async function getWasteCollectionTasks(
           )
         : tasks;
 
-    return filtered.map((task) => ({
-      ...task,
-      date: task.date.toISOString().split("T")[0],
-    }));
+    return filtered.map((task) => {
+      let formattedDate = new Date().toISOString().split("T")[0];
+      try {
+        if (task.date) {
+          const d = task.date instanceof Date ? task.date : new Date(task.date);
+          if (!isNaN(d.getTime())) {
+            formattedDate = d.toISOString().split("T")[0];
+          }
+        }
+      } catch (e) {
+        console.error("Error formatting date for task:", task.id, e);
+      }
+      return { ...task, date: formattedDate };
+    });
   } catch (error) {
     console.error("Error fetching waste collection tasks:", error);
     return [];
@@ -762,12 +772,19 @@ export async function verifyAndCompleteCollection(
     // 3. Server-side AI Verification
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
+    console.log(`Verifying collection for report ${reportId}. Type: ${report.wasteType}, Amount: ${report.amount}`);
+    
     const prompt = `You are a waste collection verification AI. 
-    Task: Verify that the waste depicted in the original report (Type: "${report.wasteType}", Amount: "${report.amount}") has been REMOVED or CLEANED UP in this new image.
-    The new image should show the SAME location but WITHOUT the waste, or with the waste properly bagged and ready for transport.
-    If the waste is still there and uncleaned, it's a fail.
-    Use one of these for verification analysis if needed: "plastic", "organic", "metal", "mixed", "hazard", "e-waste", "paper", "glass".
-    Return ONLY a JSON object: { "isCleaned": boolean, "confidence": number, "rejectionReason": string | null }.`;
+    Task: Compare two states of a location to verify cleanup.
+    Original Report: ${report.wasteType} waste (${report.amount}) was present.
+    
+    Verification Criteria:
+    1. Location Match: Does the current image show the same spot/container as the original? (Allow for minor angle/zoom differences).
+    2. Cleanup Proof: Is the ${report.wasteType} waste now GONE, or is the area/container CLEAN? 
+    3. Success Cases: An EMPTY dumpster, a SWEPT street, or properly BAGGED waste are all valid SUCCESSES.
+    
+    Return ONLY a JSON object: { "isCleaned": boolean, "confidence": number, "rejectionReason": string | null }. 
+    If the area is clean, set "isCleaned" to true. Confidence > 0.8 means you are sure.`;
     
     const result = await model.generateContent([
       prompt,
@@ -785,6 +802,7 @@ export async function verifyAndCompleteCollection(
     let parsedResult;
     try {
       parsedResult = JSON.parse(jsonMatch[0]);
+      console.log("AI Verification Result:", parsedResult);
     } catch (parseError) {
       console.error("Failed to parse AI JSON:", jsonMatch[0]);
       throw new Error("Invalid response format from AI verification.");

@@ -51,7 +51,6 @@ export default function Header({ onMenuClick, totalEarnings }: HeaderProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [balance, setBalance] = useState(0);
   const isMobile = useMediaQuery("(max-width: 768px)");
-  const pathname = usePathname();
   const initializingRef = useRef(false); // ✅ Prevents double-init in React Strict Mode
 
   const handleSuccessfulLogin = async (authInstance: Web3Auth) => {

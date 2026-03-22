@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import Header from "@/components/Header"
 import Sidebar from "@/components/Sidebar"
 import { Toaster } from 'react-hot-toast'
@@ -38,7 +38,9 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
       <div className="flex flex-1 relative z-10">
         <Sidebar open={sidebarOpen} />
         <main className="flex-1 p-4 lg:p-8 ml-0 lg:ml-64 transition-all duration-300">
-          {children}
+          <Suspense fallback={<div className="flex items-center justify-center p-8"><span className="animate-pulse">Loading content...</span></div>}>
+            {children}
+          </Suspense>
         </main>
       </div>
       <Toaster />
