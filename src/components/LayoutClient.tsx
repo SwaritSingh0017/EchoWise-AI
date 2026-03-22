@@ -29,6 +29,14 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
     }
 
     fetchTotalEarnings()
+
+    // Listen for balance updates
+    const handleBalanceUpdate = () => {
+      fetchTotalEarnings()
+    }
+
+    window.addEventListener('balanceUpdated', handleBalanceUpdate)
+    return () => window.removeEventListener('balanceUpdated', handleBalanceUpdate)
   }, [])
 
   return (

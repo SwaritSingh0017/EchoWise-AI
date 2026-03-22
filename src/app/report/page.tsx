@@ -278,6 +278,7 @@ export default function ReportPage() {
       setFraudCheckResult(null);
       toast.success("Report submitted! You've earned 10 points.");
       window.dispatchEvent(new CustomEvent('balanceUpdated'));
+      router.refresh();
 
     } catch (error: any) {
       console.error('Error submitting report:', error);

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Trash2, MapPin, CheckCircle, Clock, Weight, Calendar, Search, Loader, Camera, Filter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -57,6 +58,7 @@ export default function CollectPage() {
   const [activeFilter, setActiveFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [user, setUser] = useState<{ id: number; email: string; name: string } | null>(null);
+  const router = useRouter();
   const [selectedTask, setSelectedTask] = useState<CollectionTask | null>(null);
   const [verificationImage, setVerificationImage] = useState<string | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<'idle' | 'verifying' | 'success' | 'failure'>('idle');
@@ -187,7 +189,14 @@ export default function CollectPage() {
         toast.success('Collection verified and reward earned!');
         setSelectedTask(null);
         setVerificationImage(null);
-        // Refresh tasks
+        
+        // Dispatch balance update event for header
+        window.dispatchEvent(new CustomEvent('balanceUpdated'));
+        
+        // Refresh server state
+        router.refresh();
+
+        // Refresh tasks locally
         const fetchedTasks = await getWasteCollectionTasks(50);
         setTasks(fetchedTasks as CollectionTask[]);
       }
