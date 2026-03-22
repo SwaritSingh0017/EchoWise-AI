@@ -32,6 +32,10 @@ const WASTE_FILTER_OPTIONS = [
   { label: '🌿 Organic', value: 'organic' },
   { label: '🔩 Metal', value: 'metal' },
   { label: '🗑 Mixed', value: 'mixed' },
+  { label: '⚠️ Hazardous', value: 'hazard' },
+  { label: '📟 E-Waste', value: 'e-waste' },
+  { label: '📄 Paper', value: 'paper' },
+  { label: '🍷 Glass', value: 'glass' },
 ]
 
 type CollectionTask = {
@@ -45,6 +49,8 @@ type CollectionTask = {
   date: string
   collectorId: number | null
   imageHash: string | null
+  reporterEmail: string
+  reporterName: string
 }
 
 
@@ -84,12 +90,17 @@ export default function CollectPage() {
       setLoading(true);
       try {
         const userEmail = localStorage.getItem('userEmail');
+        let currentUserId: number | undefined;
         if (userEmail) {
           const fetchedUser = await getUserByEmail(userEmail);
-          if (fetchedUser) setUser(fetchedUser);
-          else toast.error('User not found. Please log in again.');
+          if (fetchedUser) {
+            setUser(fetchedUser);
+            currentUserId = fetchedUser.id;
+          } else {
+            toast.error('User not found. Please log in again.');
+          }
         }
-        const fetchedTasks = await getWasteCollectionTasks(50);
+        const fetchedTasks = await getWasteCollectionTasks(50, undefined, currentUserId);
         setTasks(fetchedTasks as CollectionTask[]);
       } catch (error) {
         toast.error('Failed to load tasks. Please try again.');
@@ -266,9 +277,19 @@ export default function CollectPage() {
                       </Button>
                     )}
                     {task.status === 'in_progress' && task.collectorId === user?.id && (
-                      <Button onClick={() => setSelectedTask(task)} variant="outline" size="sm" className="bg-blue-50 border-blue-200 text-blue-700">
-                        Complete & Verify
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button onClick={() => setSelectedTask(task)} variant="outline" size="sm" className="bg-blue-50 border-blue-200 text-blue-700">
+                          Complete & Verify
+                        </Button>
+                        <Button 
+                          onClick={() => window.location.href = `mailto:${task.reporterEmail}?subject=Waste Collection Inquiry&body=Hi ${task.reporterName}, I am the collector for your waste report at ${task.location}.`} 
+                          variant="outline" 
+                          size="sm"
+                          className="bg-gray-50 border-gray-200 text-gray-700"
+                        >
+                          Contact Reporter
+                        </Button>
+                      </div>
                     )}
                     {task.status === 'in_progress' && task.collectorId !== user?.id && (
                       <span className="text-yellow-600 text-sm font-medium">In progress by another collector</span>

@@ -18,6 +18,9 @@ export const wasteTypeEnum = pgEnum("waste_type_enum", [
   "metal",
   "mixed",
   "hazard",
+  "e-waste",
+  "paper",
+  "glass",
 ]);
 
 export const taskStatusEnum = pgEnum("task_status_enum", [
@@ -36,6 +39,7 @@ export const Users = pgTable("users", {
   bio: text("bio"),
   avatarUrl: text("avatar_url"),
   locationText: varchar("location_text", { length: 255 }),
+  phone: varchar("phone", { length: 20 }),
   // Waste preferences for collectors: comma-separated e.g. "plastic,organic"
   wastePreferences: text("waste_preferences"),
   // Anti-fraud: last report timestamp to enforce cooldown

@@ -73,9 +73,11 @@ export async function updateUserProfile(
   userId: number,
   data: {
     name?: string;
+    email?: string;
+    phone?: string;
+    locationText?: string;
     bio?: string;
     avatarUrl?: string;
-    locationText?: string;
     wastePreferences?: string;
   }
 ) {
@@ -230,6 +232,13 @@ export async function createReport(
         const prompt = `Analyze this waste report image. 
         CRITICAL: If the image contains dead animals or humans, this is an EMERGENCY, not waste.
         Return ONLY a JSON object: { "isWaste": boolean, "wasteType": string, "quantity": string, "confidence": number, "rejectionReason": string | null, "isEmergency": boolean }. 
+        Use one of these for wasteType: "plastic", "organic", "metal", "mixed", "hazard", "e-waste", "paper", "glass".
+        Mapping rules:
+        - Food waste, leftovers, or kitchen scraps -> "organic"
+        - Paper, cardboard, newspapers -> "paper"
+        - Glass bottles, jars -> "glass"
+        - Batteries, electronics, gadgets, wires -> "e-waste"
+        - Chemicals, batteries (hazardous), medicinal waste -> "hazard"
         If it's an emergency, set isEmergency: true and isWaste: false. Be strict.`;
         const result = await model.generateContent([
           prompt,
@@ -353,7 +362,8 @@ export async function updateReportStatus(reportId: number, status: string) {
  */
 export async function getWasteCollectionTasks(
   limit: number = 20,
-  wasteTypeFilter?: string[]
+  wasteTypeFilter?: string[],
+  userIdToExclude?: number
 ) {
   try {
     let query = db
@@ -368,9 +378,17 @@ export async function getWasteCollectionTasks(
         date: Reports.createdAt,
         collectorId: Reports.collectorId,
         imageHash: Reports.imageHash,
+        reporterEmail: Users.email,
+        reporterName: Users.name,
       })
-
       .from(Reports)
+      .leftJoin(Users, eq(Reports.userId, Users.id))
+      .where(
+        and(
+          ne(Reports.status, "verified"),
+          userIdToExclude ? ne(Reports.userId, userIdToExclude) : undefined
+        )
+      )
       .orderBy(desc(Reports.createdAt))
       .limit(limit);
 
@@ -748,6 +766,7 @@ export async function verifyAndCompleteCollection(
     Task: Verify that the waste depicted in the original report (Type: "${report.wasteType}", Amount: "${report.amount}") has been REMOVED or CLEANED UP in this new image.
     The new image should show the SAME location but WITHOUT the waste, or with the waste properly bagged and ready for transport.
     If the waste is still there and uncleaned, it's a fail.
+    Use one of these for verification analysis if needed: "plastic", "organic", "metal", "mixed", "hazard", "e-waste", "paper", "glass".
     Return ONLY a JSON object: { "isCleaned": boolean, "confidence": number, "rejectionReason": string | null }.`;
     
     const result = await model.generateContent([
@@ -757,9 +776,19 @@ export async function verifyAndCompleteCollection(
     const response = await result.response;
     const text = response.text().trim();
     const jsonMatch = text.match(/\{[\s\S]*?\}/);
-    
-    if (!jsonMatch) throw new Error("AI verification failed to produce JSON.");
-    const parsedResult = JSON.parse(jsonMatch[0]);
+
+    if (!jsonMatch) {
+      console.error("AI Response did not contain JSON:", text);
+      throw new Error("AI verification failed to produce a valid response. Please try with a clearer image.");
+    }
+
+    let parsedResult;
+    try {
+      parsedResult = JSON.parse(jsonMatch[0]);
+    } catch (parseError) {
+      console.error("Failed to parse AI JSON:", jsonMatch[0]);
+      throw new Error("Invalid response format from AI verification.");
+    }
 
     if (parsedResult.isCleaned && parsedResult.confidence > 0.7) {
       // 4. Award points and update status
@@ -863,6 +892,13 @@ export async function verifyWaste(base64Image: string) {
     const prompt = `Analyze this waste report image. 
     CRITICAL: If the image contains dead animals or humans, this is an EMERGENCY, not waste.
     Return ONLY a JSON object: { "isWaste": boolean, "wasteType": string, "quantity": string, "confidence": number, "rejectionReason": string | null, "isEmergency": boolean }. 
+    Use one of these for wasteType: "plastic", "organic", "metal", "mixed", "hazard", "e-waste", "paper", "glass".
+    Mapping rules:
+    - Food waste, leftovers, or kitchen scraps -> "organic"
+    - Paper, cardboard, newspapers -> "paper"
+    - Glass bottles, jars -> "glass"
+    - Batteries, electronics, gadgets, wires -> "e-waste"
+    - Chemicals, batteries (hazardous), medicinal waste -> "hazard"
     If it's an emergency, set isEmergency: true and isWaste: false. Be strict.`;
     const result = await model.generateContent([
       prompt,

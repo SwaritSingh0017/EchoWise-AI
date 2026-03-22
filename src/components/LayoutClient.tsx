@@ -5,6 +5,7 @@ import Header from "@/components/Header"
 import Sidebar from "@/components/Sidebar"
 import { Toaster } from 'react-hot-toast'
 import { getAvailableRewards, getUserByEmail } from '@/utils/db/actions'
+import LeavesBackground from "@/components/LeavesBackground"
 import ChatBot from '@/components/ChatBot'
 
 export default function LayoutClient({ children }: { children: React.ReactNode }) {
@@ -31,9 +32,10 @@ export default function LayoutClient({ children }: { children: React.ReactNode }
   }, [])
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col relative">
+      <LeavesBackground />
       <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} totalEarnings={totalEarnings} />
-      <div className="flex flex-1">
+      <div className="flex flex-1 relative z-10">
         <Sidebar open={sidebarOpen} />
         <main className="flex-1 p-4 lg:p-8 ml-0 lg:ml-64 transition-all duration-300">
           {children}

@@ -67,3 +67,26 @@
     @apply bg-background text-foreground;
   }
 }
+
+html {
+  scroll-behavior: smooth;
+}
+
+@keyframes float {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  33% {
+    transform: translate(20px, 50px) rotate(120deg);
+  }
+  66% {
+    transform: translate(-20px, 100px) rotate(240deg);
+  }
+  100% {
+    transform: translate(0, 150px) rotate(360deg);
+  }
+}
+
+.animate-float {
+  animation: float linear infinite;
+}

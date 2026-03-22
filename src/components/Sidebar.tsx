@@ -1,4 +1,8 @@
+'use client'
+// @ts-nocheck
+import { useState, useEffect } from 'react';
 import Link from "next/link"
+
 import { usePathname } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { MapPin, Trash, Coins, Medal, Settings, Home, MessageSquare } from "lucide-react"
